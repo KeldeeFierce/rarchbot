@@ -1,0 +1,10 @@
+[package]
+name = "rarchbot"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
+teloxide = { version = "0.17.0", features = ["macros"] }
+tokio = { version = "1.52.3", features = ["full"] }
