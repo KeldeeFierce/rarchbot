@@ -1,0 +1,99 @@
+use std::sync::Arc;
+
+use teloxide::dptree::deps;
+use teloxide::prelude::*;
+use teloxide::utils::command::BotCommands;
+
+use crate::db::DB;
+use crate::models::Chat;
+
+type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+#[derive(BotCommands, Clone)]
+#[command(
+    rename_rule = "lowercase",
+    description = "A bot that sends you updates from arlinux.org, so you won't miss the next attack on AUR"
+)]
+enum Command {
+    #[command(description = "display this text.")]
+    Help,
+    #[command(description = "Will subscribe you to updates")]
+    Start,
+    #[command(description = "Will unsubscribe you from updates")]
+    Stop,
+}
+
+pub async fn run(bot: Bot, db: Arc<DB>) {
+    let handler = Update::filter_message()
+        .filter_command::<Command>()
+        .branch(dptree::case![Command::Help].endpoint(help))
+        .branch(dptree::case![Command::Start].endpoint(start))
+        .branch(dptree::case![Command::Stop].endpoint(stop));
+
+    Dispatcher::builder(bot, handler)
+        .enable_ctrlc_handler()
+        .dependencies(deps![db])
+        .build()
+        .dispatch()
+        .await;
+    log::info!("Dispatcher stopped")
+}
+
+async fn help(bot: Bot, msg: Message) -> HandlerResult {
+    let text = Command::descriptions().to_string();
+    log::info!("sending help, chat: {}, message: {}", msg.chat.id, text);
+    bot.send_message(msg.chat.id, &text).await?;
+    Ok(())
+}
+
+async fn start(bot: Bot, msg: Message, db: Arc<DB>) -> HandlerResult {
+    let chat_id = msg.chat.id.0;
+    let chat = Chat {
+        id: 0,
+        chat_id: Some(chat_id),
+    };
+
+    match db.insert_chat(&chat).await {
+        Ok(()) => {
+            log::info!("Chat id {:?} just subscribed", chat_id);
+            bot.send_message(msg.chat.id, "You are now subscribed!".to_owned())
+                .await?;
+        }
+        Err(e) => {
+            log::error!("Error subscribing in chat {}: {}", chat_id, e);
+            bot.send_message(
+                msg.chat.id,
+                "Something went wrong, you are not subsribed".to_owned(),
+            )
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn stop(bot: Bot, msg: Message, db: Arc<DB>) -> HandlerResult {
+    let chat_id = msg.chat.id.0;
+    let chat = Chat {
+        id: 0,
+        chat_id: Some(chat_id),
+    };
+
+    match db.delete_chat(&chat).await {
+        Ok(()) => {
+            log::info!("Chat id {} just unsubscribed", chat_id);
+            bot.send_message(msg.chat.id, "You are now unsubscribed!".to_owned())
+                .await?;
+        }
+        Err(e) => {
+            log::error!("Error unsubscribing in chat {}: {}", chat_id, e);
+            bot.send_message(
+                msg.chat.id,
+                "Something went wrong, you are not unsubsribed".to_owned(),
+            )
+            .await?;
+        }
+    }
+
+    Ok(())
+}

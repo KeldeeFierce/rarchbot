@@ -2089,6 +2089,7 @@ dependencies = [
 name = "rarchbot"
 version = "0.1.0"
 dependencies = [
+ "dotenvy",
  "env_logger",
  "html2text",
  "log",
@@ -2099,6 +2100,7 @@ dependencies = [
  "teloxide",
  "thiserror",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -3255,6 +3257,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

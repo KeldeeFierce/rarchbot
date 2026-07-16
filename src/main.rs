@@ -1,16 +1,77 @@
-use std::{io::Write, sync::Arc};
+use std::{env, io::Write, process::exit, sync::Arc};
 
-use crate::{db::DB, rss::Poller};
+use teloxide::prelude::*;
+use teloxide::utils::command::BotCommands;
+use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio_util::sync::CancellationToken;
+
+use crate::{
+    db::DB,
+    models::Post,
+    rss::Poller,
+    telegram::{
+        dispatcher,
+        notifier::{self, Notifier},
+    },
+};
+pub mod bot;
 pub mod db;
 pub mod errors;
 pub mod models;
 pub mod rss;
+pub mod telegram;
 
 const TEST_URL: &str = "https://lorem-rss.herokuapp.com/feed?unit=second&interval=10";
-const ARCH_URL: &str = "https://archlinux.org/feeds/news/";
+// const ARCH_URL: &str = "https://archlinux.org/feeds/news/";
 
 #[tokio::main]
 async fn main() {
+    init_logger();
+
+    dotenvy::dotenv().ok();
+    if env::var("TELOXIDE_TOKEN").is_err() {
+        log::error!("missing env vars");
+        exit(1);
+    }
+
+    log::info!("bot starting");
+    let bot = Bot::from_env();
+    let shutdown = CancellationToken::new();
+    let poller_shutdown = shutdown.clone();
+    let notifier_shutdown = shutdown.clone();
+
+    let (tx, rx) = mpsc::channel::<Post>(32);
+
+    let db = Arc::new(DB::new("sqlite_db/test.db").await.unwrap());
+    let poller = Poller::new(TEST_URL.to_string(), Arc::clone(&db), tx);
+    let notifier = Notifier::new(bot.clone(), Arc::clone(&db), rx);
+
+    //Remove this
+    // let chats = db.get_chats().await.unwrap();
+    // for chat in chats {
+    //     log::info!("currently subscribed: {}", chat.chat_id.unwrap())
+    // }
+
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for Ctrl+C");
+
+        log::info!("Ctrl+C received, shutting down...");
+        shutdown.cancel();
+    });
+
+    let notifier_handle = tokio::spawn(notifier.run(notifier_shutdown));
+    let poller_handle = tokio::spawn(poller.run(poller_shutdown));
+
+    dispatcher::run(bot.clone(), Arc::clone(&db)).await;
+
+    // let _ = tokio::try_join!(notifier_handle, poller_handle,);
+    let _ = notifier_handle.await;
+    let _ = poller_handle.await;
+}
+
+fn init_logger() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| {
@@ -23,10 +84,4 @@ async fn main() {
             )
         })
         .init();
-
-    log::info!("bot starting");
-
-    let db = Arc::new(DB::new("sqlite_db/test.db").await.unwrap());
-    let poller = Poller::new(TEST_URL, Arc::clone(&db));
-    poller.run().await;
 }

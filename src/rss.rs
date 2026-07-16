@@ -1,6 +1,8 @@
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use rss::Channel;
+use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
 
 use crate::{db::DB, errors::RssError, models::Post};
 
@@ -8,15 +10,17 @@ pub struct Poller {
     client: reqwest::Client,
     url: String,
     db: Arc<DB>,
+    tx: Sender<Post>,
 }
 
 impl Poller {
-    pub fn new(url: &str, db: Arc<DB>) -> Self {
+    pub fn new(url: String, db: Arc<DB>, tx: Sender<Post>) -> Self {
         let client = reqwest::Client::new();
         Self {
             client,
-            url: url.to_owned(),
+            url,
             db,
+            tx,
         }
     }
 
@@ -83,42 +87,84 @@ impl Poller {
         seen
     }
 
-    pub async fn run(&self) {
-        // Initialize lookup table
+    pub async fn run(self, shutdown: CancellationToken) {
+        log::info!("Starting poller");
+
         let mut seen = self.initialize_seen().await;
 
         let mut interval = tokio::time::interval(Duration::from_secs(10));
 
-        // Runtime with initialized lookup table
         loop {
-            interval.tick().await;
-
-            let fetched_posts = match self.poll().await {
-                Ok(posts) => posts,
-                Err(e) => {
-                    log::error!("Error fetching posts: {e}");
-                    Vec::new()
+            tokio::select! {
+                _ = shutdown.cancelled() => {
+                    log::info!("Shutting down poller");
+                    break;
                 }
-            };
+                _ = interval.tick() => {
 
-            for post in fetched_posts {
-                if let Some(guid) = &post.guid
-                    && !seen.contains(guid)
-                {
-                    seen.insert(guid.to_string());
-                    if let Err(e) = self.db.insert_post(&post).await {
-                        log::error!("Error inserting into database: {e}")
+                    let fetched_posts = match self.poll().await {
+                        Ok(posts) => posts,
+                        Err(e) => {
+                            log::error!("Error fetching posts: {e}");
+                            Vec::new()
+                        }
                     };
 
-                    println!("{}\n{}", post.title.unwrap(), post.content.unwrap())
+                    for post in fetched_posts {
+                        if let Some(guid) = &post.guid
+                            && !seen.contains(guid)
+                        {
+                            seen.insert(guid.to_string());
+                            if let Err(e) = self.db.insert_post(&post).await {
+                                log::error!("Error inserting into database: {e}")
+                            };
+
+                            if let Err(e) = self.tx.send(post).await {
+                                log::error!("Error sending post to notifier: {e}")
+                            }
+                        }
+                    }
+
+
                 }
             }
         }
+
+        // Runtime with initialized lookup table
+        // loop {
+        //     interval.tick().await;
+        //
+        //     let fetched_posts = match self.poll().await {
+        //         Ok(posts) => posts,
+        //         Err(e) => {
+        //             log::error!("Error fetching posts: {e}");
+        //             Vec::new()
+        //         }
+        //     };
+        //
+        //     for post in fetched_posts {
+        //         if let Some(guid) = &post.guid
+        //             && !seen.contains(guid)
+        //         {
+        //             seen.insert(guid.to_string());
+        //             if let Err(e) = self.db.insert_post(&post).await {
+        //                 log::error!("Error inserting into database: {e}")
+        //             };
+        //
+        //             if let Err(e) = self.tx.send(post).await {
+        //                 log::error!("Error sending post to notifier: {e}")
+        //             }
+        //         }
+        //     }
+        // }
+        log::info!("Poller stopped");
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use tokio::sync::mpsc;
+
     use super::*;
 
     // const TEST_URL: &str = "https://lorem-rss.herokuapp.com/feed?unit=second&interval=10";
@@ -127,7 +173,8 @@ mod tests {
     #[tokio::test]
     async fn test_poll() {
         let db = Arc::new(DB::new("sqlite_db/test.db").await.unwrap());
-        let poller = Poller::new(ARCH_URL, Arc::clone(&db));
+        let (tx, rx) = mpsc::channel::<Post>(32);
+        let poller = Poller::new(ARCH_URL.to_string(), Arc::clone(&db), tx);
         let res = poller.poll().await;
         assert!(res.is_ok());
         println!("{}", res.unwrap()[0].content.clone().unwrap());

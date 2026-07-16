@@ -72,6 +72,13 @@ impl DB {
             .await?;
         Ok(chats)
     }
+
+    pub async fn delete_chat(&self, chat: &Chat) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM chats WHERE chat_id=?;", chat.chat_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
