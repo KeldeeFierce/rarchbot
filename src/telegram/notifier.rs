@@ -36,7 +36,6 @@ impl Notifier {
     }
 
     async fn notify(&self, post: Post) {
-        // let chat_id: i64 = 5253731013;
         let chats = self.db.get_chats().await;
         let chats = match chats {
             Ok(chats) => chats,

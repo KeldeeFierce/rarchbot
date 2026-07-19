@@ -1,18 +1,14 @@
 use std::{env, io::Write, process::exit, sync::Arc};
 
 use teloxide::prelude::*;
-use teloxide::utils::command::BotCommands;
-use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::mpsc::{self};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     db::DB,
     models::Post,
     rss::Poller,
-    telegram::{
-        dispatcher,
-        notifier::{self, Notifier},
-    },
+    telegram::{dispatcher, notifier::Notifier},
 };
 pub mod bot;
 pub mod db;
@@ -21,7 +17,7 @@ pub mod models;
 pub mod rss;
 pub mod telegram;
 
-const TEST_URL: &str = "https://lorem-rss.herokuapp.com/feed?unit=second&interval=10";
+// const TEST_URL: &str = "https://lorem-rss.herokuapp.com/feed?unit=second&interval=10";
 // const ARCH_URL: &str = "https://archlinux.org/feeds/news/";
 
 #[tokio::main]
@@ -30,9 +26,14 @@ async fn main() {
 
     dotenvy::dotenv().ok();
     if env::var("TELOXIDE_TOKEN").is_err() {
-        log::error!("missing env vars");
+        log::error!("missing TELOXIDE_TOKEN env var");
         exit(1);
     }
+
+    let url = env::var("URL").unwrap_or_else(|_| {
+        log::error!("missing URL env var");
+        exit(1);
+    });
 
     log::info!("bot starting");
     let bot = Bot::from_env();
@@ -43,14 +44,8 @@ async fn main() {
     let (tx, rx) = mpsc::channel::<Post>(32);
 
     let db = Arc::new(DB::new("sqlite_db/test.db").await.unwrap());
-    let poller = Poller::new(TEST_URL.to_string(), Arc::clone(&db), tx);
+    let poller = Poller::new(url.to_string(), Arc::clone(&db), tx);
     let notifier = Notifier::new(bot.clone(), Arc::clone(&db), rx);
-
-    //Remove this
-    // let chats = db.get_chats().await.unwrap();
-    // for chat in chats {
-    //     log::info!("currently subscribed: {}", chat.chat_id.unwrap())
-    // }
 
     tokio::spawn(async move {
         tokio::signal::ctrl_c()

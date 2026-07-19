@@ -130,33 +130,6 @@ impl Poller {
             }
         }
 
-        // Runtime with initialized lookup table
-        // loop {
-        //     interval.tick().await;
-        //
-        //     let fetched_posts = match self.poll().await {
-        //         Ok(posts) => posts,
-        //         Err(e) => {
-        //             log::error!("Error fetching posts: {e}");
-        //             Vec::new()
-        //         }
-        //     };
-        //
-        //     for post in fetched_posts {
-        //         if let Some(guid) = &post.guid
-        //             && !seen.contains(guid)
-        //         {
-        //             seen.insert(guid.to_string());
-        //             if let Err(e) = self.db.insert_post(&post).await {
-        //                 log::error!("Error inserting into database: {e}")
-        //             };
-        //
-        //             if let Err(e) = self.tx.send(post).await {
-        //                 log::error!("Error sending post to notifier: {e}")
-        //             }
-        //         }
-        //     }
-        // }
         log::info!("Poller stopped");
     }
 }
@@ -167,7 +140,6 @@ mod tests {
 
     use super::*;
 
-    // const TEST_URL: &str = "https://lorem-rss.herokuapp.com/feed?unit=second&interval=10";
     const ARCH_URL: &str = "https://archlinux.org/feeds/news/";
 
     #[tokio::test]
