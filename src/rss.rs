@@ -87,6 +87,31 @@ impl Poller {
         seen
     }
 
+    async fn process_posts(&self, seen: &mut HashSet<String>) {
+        let fetched_posts = match self.poll().await {
+            Ok(posts) => posts,
+            Err(e) => {
+                log::error!("Error fetching posts: {e}");
+                Vec::new()
+            }
+        };
+
+        for post in fetched_posts {
+            if let Some(guid) = &post.guid
+                && !seen.contains(guid)
+            {
+                seen.insert(guid.to_string());
+                if let Err(e) = self.db.insert_post(&post).await {
+                    log::error!("Error inserting into database: {e}")
+                };
+
+                if let Err(e) = self.tx.send(post).await {
+                    log::error!("Error sending post to notifier: {e}")
+                }
+            }
+        }
+    }
+
     pub async fn run(self, shutdown: CancellationToken) {
         log::info!("Starting poller");
 
@@ -100,33 +125,8 @@ impl Poller {
                     log::info!("Shutting down poller");
                     break;
                 }
-                _ = interval.tick() => {
 
-                    let fetched_posts = match self.poll().await {
-                        Ok(posts) => posts,
-                        Err(e) => {
-                            log::error!("Error fetching posts: {e}");
-                            Vec::new()
-                        }
-                    };
-
-                    for post in fetched_posts {
-                        if let Some(guid) = &post.guid
-                            && !seen.contains(guid)
-                        {
-                            seen.insert(guid.to_string());
-                            if let Err(e) = self.db.insert_post(&post).await {
-                                log::error!("Error inserting into database: {e}")
-                            };
-
-                            if let Err(e) = self.tx.send(post).await {
-                                log::error!("Error sending post to notifier: {e}")
-                            }
-                        }
-                    }
-
-
-                }
+                _ = interval.tick() => self.process_posts(&mut seen).await
             }
         }
 
@@ -145,7 +145,7 @@ mod tests {
     #[tokio::test]
     async fn test_poll() {
         let db = Arc::new(DB::new("sqlite_db/test.db").await.unwrap());
-        let (tx, rx) = mpsc::channel::<Post>(32);
+        let (tx, _rx) = mpsc::channel::<Post>(32);
         let poller = Poller::new(ARCH_URL.to_string(), Arc::clone(&db), tx);
         let res = poller.poll().await;
         assert!(res.is_ok());
