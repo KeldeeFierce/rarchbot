@@ -119,7 +119,7 @@ impl Poller {
 
         let mut seen = self.initialize_seen().await;
 
-        let mut interval = tokio::time::interval(Duration::from_secs(10));
+        let mut interval = tokio::time::interval(Duration::from_mins(30));
 
         loop {
             tokio::select! {
