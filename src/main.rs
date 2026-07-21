@@ -33,10 +33,7 @@ async fn main() {
         exit(1);
     }
 
-    let url = env::var("URL").unwrap_or_else(|_| {
-        log::error!("missing URL env var");
-        exit(1);
-    });
+    let url = env::var("URL").unwrap_or("https://archlinux.org/feeds/news/".to_owned());
 
     let db_path = env::var("DB_PATH").unwrap_or_else(|_| {
         log::error!("missing DB_PATH env var");
