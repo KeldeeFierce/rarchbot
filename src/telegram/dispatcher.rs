@@ -21,6 +21,8 @@ enum Command {
     Start,
     #[command(description = "Will unsubscribe you from updates")]
     Stop,
+    #[command(description = "Will send the latest post awailable")]
+    Last,
 }
 
 pub async fn run(bot: Bot, db: Arc<DB>) {
@@ -28,7 +30,8 @@ pub async fn run(bot: Bot, db: Arc<DB>) {
         .filter_command::<Command>()
         .branch(dptree::case![Command::Help].endpoint(help))
         .branch(dptree::case![Command::Start].endpoint(start))
-        .branch(dptree::case![Command::Stop].endpoint(stop));
+        .branch(dptree::case![Command::Stop].endpoint(stop))
+        .branch(dptree::case![Command::Last].endpoint(last));
 
     Dispatcher::builder(bot, handler)
         .enable_ctrlc_handler()
@@ -92,6 +95,23 @@ async fn stop(bot: Bot, msg: Message, db: Arc<DB>) -> HandlerResult {
                 "Something went wrong, you are not unsubsribed".to_owned(),
             )
             .await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn last(bot: Bot, msg: Message, db: Arc<DB>) -> HandlerResult {
+    let post = db.get_last_post().await;
+    match post {
+        Ok(post) => {
+            bot.send_message(msg.chat.id, post.to_string()).await?;
+            log::info!("Sending last post: {}", post);
+        }
+        Err(e) => {
+            bot.send_message(msg.chat.id, "Unable to find any recent posts".to_owned())
+                .await?;
+            log::error!("Failed to get last post from DB: {e}");
         }
     }
 
