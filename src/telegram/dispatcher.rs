@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use teloxide::dispatching::dialogue::GetChatId;
 use teloxide::dptree::deps;
 use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
@@ -15,14 +16,16 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
     description = "A bot that sends you updates from arlinux.org, so you won't miss the next attack on AUR"
 )]
 enum Command {
-    #[command(description = "display this text.")]
+    #[command(description = "Display this text.")]
     Help,
-    #[command(description = "Will subscribe you to updates")]
+    #[command(description = "Subscribe to updates")]
     Start,
-    #[command(description = "Will unsubscribe you from updates")]
+    #[command(description = "Unsubscribe from updates")]
     Stop,
-    #[command(description = "Will send the latest post awailable")]
+    #[command(description = "Get the latest post awailable")]
     Last,
+    #[command(description = "Check subscribtion status")]
+    IsSubscribed,
 }
 
 pub async fn run(bot: Bot, db: Arc<DB>) {
@@ -31,7 +34,8 @@ pub async fn run(bot: Bot, db: Arc<DB>) {
         .branch(dptree::case![Command::Help].endpoint(help))
         .branch(dptree::case![Command::Start].endpoint(start))
         .branch(dptree::case![Command::Stop].endpoint(stop))
-        .branch(dptree::case![Command::Last].endpoint(last));
+        .branch(dptree::case![Command::Last].endpoint(last))
+        .branch(dptree::case![Command::IsSubscribed].endpoint(is_subscribed));
 
     Dispatcher::builder(bot, handler)
         .enable_ctrlc_handler()
@@ -114,6 +118,35 @@ async fn last(bot: Bot, msg: Message, db: Arc<DB>) -> HandlerResult {
             log::error!("Failed to get last post from DB: {e}");
         }
     }
+
+    Ok(())
+}
+
+async fn is_subscribed(bot: Bot, msg: Message, db: Arc<DB>) -> HandlerResult {
+    let chats = db.get_chats().await.unwrap_or_else(|e| {
+        log::error!("Unable to fetch chats from DB: {e}");
+        Vec::new()
+    });
+
+    for chat in chats {
+        if let Some(chat_id) = chat.chat_id
+            && chat_id == msg.chat.id.0
+        {
+            bot.send_message(msg.chat.id, "You are subsribed").await?;
+            log::info!(
+                "Chat id {} requsted subscribtion status, status is SUBSCRIBED",
+                msg.chat.id
+            );
+            return Ok(());
+        }
+    }
+
+    bot.send_message(msg.chat.id, "You are not subsribed")
+        .await?;
+    log::info!(
+        "Chat id {} requsted subscribtion status, status is UNSUBSCRIBED",
+        msg.chat.id
+    );
 
     Ok(())
 }
