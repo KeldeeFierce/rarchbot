@@ -1,4 +1,9 @@
-use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
+use std::str::FromStr;
+
+use sqlx::{
+    SqlitePool,
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+};
 
 use crate::models::{Chat, Post};
 
@@ -8,9 +13,10 @@ pub struct DB {
 
 impl DB {
     pub async fn new(db_path: &str) -> Result<Self, sqlx::Error> {
+        let options = SqliteConnectOptions::from_str(db_path)?.create_if_missing(true);
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
-            .connect(db_path)
+            .connect_with(options)
             .await?;
 
         Ok(Self { pool })
