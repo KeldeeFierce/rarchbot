@@ -29,7 +29,9 @@ impl Poller {
         let channel = Channel::read_from(&contents[..])?;
 
         let mut posts = vec![];
-        for item in channel.into_items() {
+        let mut items = channel.into_items();
+        items.reverse();
+        for item in items {
             let content = item
                 .description
                 .map(|content| html2text::from_read(content.as_bytes(), 80))
