@@ -4,6 +4,14 @@ A Telegram bot that monitors the rss feed at https://archlinux.org/feeds/news/ a
 
 Built with Rust, Tokio, Teloxide, and SQLx.
 
+## Supported commands
+
+- /help — display this text.
+- /start — Will subscribe you to updates
+- /stop — Will unsubscribe you from updates
+- /last — Will send the latest post awailable
+- /issubscribed — Will check your subsribtion status
+
 ## Features
 - Periodically polls an RSS feed for new posts
 - Sends new posts to all subscribed Telegram chats
@@ -19,13 +27,15 @@ Built with Rust, Tokio, Teloxide, and SQLx.
 
 The bot is configured using environment variables.
 
-```
-TELOXIDE_TOKEN=your_telegram_bot_token
-URL=https://archlinux.org/feeds/news/
-DATABASE_URL=sqlite:///data/rarchbot.db
-```
+| Variable | Description |
+| --- | --- |
+| `TELOXIDE_TOKEN` | Telegram Bot API token |
+| `URL` | RSS/ feed URL to monitor |
+| `DATABASE_URL` | SQLx database connection URL |
 
-URL is optional if it's not set the default will be used
+URL is optional if it's not set the [default](https://archlinux.org/feeds/news/) will be used. 
+
+It can theoretically work with other feeds but results may be inconsistent.
 
 ## Installation
 
