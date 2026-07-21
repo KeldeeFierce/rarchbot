@@ -1,7 +1,10 @@
 use std::{env, io::Write, process::exit, sync::Arc};
 
 use teloxide::prelude::*;
-use tokio::sync::mpsc::{self};
+use tokio::{
+    signal::unix::{SignalKind, signal},
+    sync::mpsc::{self},
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -62,11 +65,21 @@ async fn main() {
     }
 
     tokio::spawn(async move {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Failed to listen for Ctrl+C");
+        // tokio::signal::ctrl_c()
+        //     .await
+        //     .expect("Failed to listen for Ctrl+C");
+        //
+        // log::info!("Ctrl+C received, shutting down...");
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Ctrl+C received, shutting down");
+            }
+            _ = sigterm_listener() => {
+                log::info!("Sigterm received, shutting down");
+            }
 
-        log::info!("Ctrl+C received, shutting down...");
+        }
+
         shutdown.cancel();
     });
 
@@ -93,4 +106,13 @@ fn init_logger() {
             )
         })
         .init();
+}
+
+async fn sigterm_listener() {
+    let mut sigterm = signal(SignalKind::terminate()).unwrap_or_else(|e| {
+        log::error!("Failed to install SIGTERM listener: {e}");
+        exit(1);
+    });
+
+    sigterm.recv().await;
 }
