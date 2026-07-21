@@ -35,6 +35,11 @@ async fn main() {
         exit(1);
     });
 
+    let db_path = env::var("DB_PATH").unwrap_or_else(|_| {
+        log::error!("missing DB_PATH env var");
+        exit(1);
+    });
+
     log::info!("bot starting");
     let bot = Bot::from_env();
     let shutdown = CancellationToken::new();
@@ -43,9 +48,18 @@ async fn main() {
 
     let (tx, rx) = mpsc::channel::<Post>(32);
 
-    let db = Arc::new(DB::new("sqlite_db/test.db").await.unwrap());
+    let db = Arc::new(DB::new(&db_path).await.unwrap_or_else(|e| {
+        log::error!("Error opening db: {}", e);
+        exit(1);
+    }));
+
     let poller = Poller::new(url.to_string(), Arc::clone(&db), tx);
     let notifier = Notifier::new(bot.clone(), Arc::clone(&db), rx);
+
+    if let Err(e) = db.migrate().await {
+        log::error!("Unable to migrate: {}", e);
+        exit(1);
+    }
 
     tokio::spawn(async move {
         tokio::signal::ctrl_c()

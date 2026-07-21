@@ -1,0 +1,13 @@
+services:
+  rarchbot:
+    build: .
+    environment:
+      TELOXIDE_TOKEN: ${TELOXIDE_TOKEN}
+      URL: ${URL}
+      DB_PATH: /docker_data/app.db
+    volumes:
+      - docker_data:/docker_data
+    restart: no
+
+volumes:
+  docker_data:

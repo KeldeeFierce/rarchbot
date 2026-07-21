@@ -2,4 +2,3 @@
 /sqlite_db/test.db
 /sqlite_db/app.db
 .env
-/docker-data/app.db
