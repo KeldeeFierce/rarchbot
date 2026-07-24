@@ -41,7 +41,7 @@ It can theoretically work with other feeds but results may be inconsistent.
 
 ### Running a Release
 
-Download the latest release from the Releases page.
+Download the latest release from the [Releases](https://github.com/KeldeeFierce/rarchbot/releases) page.
 
 Make the binary executable if necessary:
 
