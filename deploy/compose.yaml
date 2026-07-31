@@ -10,4 +10,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  rarchbot-data:
+  docker-data:
