@@ -10,4 +10,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  docker-data:
+  docker_data:
