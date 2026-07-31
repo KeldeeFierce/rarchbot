@@ -13,7 +13,6 @@ use crate::{
     rss::Poller,
     telegram::{dispatcher, notifier::Notifier},
 };
-pub mod bot;
 pub mod db;
 pub mod errors;
 pub mod models;

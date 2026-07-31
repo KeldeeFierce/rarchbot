@@ -2,18 +2,39 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
-env:
-  CARGO_TERM_COLOR: always
+    branches: ["main"]
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-
+    runs-on: self-hosted
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+
+      - name: Build docker image
+        run: |
+          sudo docker build \
+          -t docker-registry:5000/rarchbot:${{ github.sha }} \
+          -t docker-registry:5000/rarchbot:latest .
+
+      - name: Push image to registry
+        run: |
+          sudo docker push docker-registry:5000/rarchbot:${{ github.sha }} 
+          sudo docker push docker-registry:5000/rarchbot:latest
+
+      - name: Copy compose file
+        run: |
+          scp -i ~/.ssh/lab deploy/compose.yaml tgbot:/opt/rarchbot
+
+      - name: Create env file on VM
+        run: |
+          ssh -T -i ~/.ssh/lab tgbot "
+          cat > /opt/rarchbot/.env <<EOF
+          BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+          DB_PATH=/data/rarchbot.db
+          URL=https://archlinux.org/feeds/news/
+          EOF
+          "
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/lab tgbot "cd /opt/rarchbot && sudo docker-compose pull && sudo docker-compose up -d"
