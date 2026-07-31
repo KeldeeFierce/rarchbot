@@ -13,7 +13,7 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 #[derive(BotCommands, Clone)]
 #[command(
     rename_rule = "lowercase",
-    description = "A bot that sends you updates from arlinux.org, so you won't miss the next attack on AUR"
+    description = "A bot that sends you updates from archlinux.org, so you won't miss the next attack on AUR"
 )]
 enum Command {
     #[command(description = "Display this text.")]
