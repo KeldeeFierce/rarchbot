@@ -1,0 +1,13 @@
+services:
+  rarchbot:
+    image: docker-registry:5000/rarchbot:latest
+    environment:
+      TELOXIDE_TOKEN: ${TELOXIDE_TOKEN}
+      DB_PATH: /data/rarchbot.db
+      URL: https://archlinux.org/feeds/news/
+    volumes:
+      - rarchbot-data:/data
+    restart: unless-stopped
+
+volumes:
+  rarchbot-data:
